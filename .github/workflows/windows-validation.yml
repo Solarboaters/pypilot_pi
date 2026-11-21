@@ -1,0 +1,63 @@
+name: Windows build validation (fork only)
+on:
+  push:
+    branches: [validate/windows-build]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Build plugin and package without publishing
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:PYTHON = $env:pythonLocation
+          $env:CONFIGURATION = 'RelWithDebInfo'
+          $script = Get-Content ci/appveyor.bat -Raw
+          if (-not $script.Contains('echo Uploading artifact')) { throw 'Missing publication boundary' }
+          # Exercise the actual build script through dependency inspection;
+          # omit its upload/catalog publication tail in this validation job.
+          $script.Split(@('echo Uploading artifact'), [StringSplitOptions]::None)[0] + "`r`nexit /b 0`r`n" | Set-Content ci/appveyor-build-only.bat -Encoding ascii
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          "@echo off`r`ncall `"$vs\VC\Auxiliary\Build\vcvars32.bat`"`r`ncall ci\appveyor-build-only.bat`r`nexit /b %errorlevel%" | Set-Content run-validation.cmd -Encoding ascii
+          & cmd /c run-validation.cmd
+          if ($LASTEXITCODE -ne 0) { throw "Windows build failed: $LASTEXITCODE" }
+          $dll = Get-ChildItem build/app -Recurse -Filter '*pypilot*.dll'
+          if (-not $dll) { throw 'Plugin DLL missing' }
+          foreach ($file in $dll) {
+            $bytes = [IO.File]::ReadAllBytes($file.FullName)
+            $offset = [BitConverter]::ToInt32($bytes, 0x3c)
+            $machine = [BitConverter]::ToUInt16($bytes, $offset + 4)
+            if ($machine -ne 0x14c) { throw "Not a Win32 DLL: $machine" }
+            Write-Output "Verified Win32 DLL: $($file.FullName)"
+          }
+      - name: Check dependency failure stops the build
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'dependency-failure'
+          New-Item -ItemType Directory -Force "$root/ci", "$root/buildwin" | Out-Null
+          Copy-Item ci/appveyor.bat "$root/ci/appveyor.bat"
+          '@exit /b 37' | Set-Content "$root/buildwin/win_deps.bat" -Encoding ascii
+          Push-Location $root
+          & cmd /c ci\appveyor.bat
+          $code = $LASTEXITCODE
+          Pop-Location
+          if ($code -eq 0 -or (Test-Path "$root/build")) { throw 'Dependency failure was not stopped' }
+          Write-Output "Dependency failure correctly stopped before configure: exit $code"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pypilot-windows-build
+          path: |
+            build/*.tar.gz
+            build/*.xml
+            build/app/files/plugins/*pypilot*.dll
+          if-no-files-found: error
