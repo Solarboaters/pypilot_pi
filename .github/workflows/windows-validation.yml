@@ -8,25 +8,44 @@ jobs:
   build:
     runs-on: windows-2022
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [build-fix-only, with-discovery-fix]
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
+      - name: Apply existing discovery fix for combined validation
+        if: matrix.variant == 'with-discovery-fix'
+        shell: pwsh
+        run: |
+          git fetch origin 5aecd2dd355a50c31f2b0c852bd56f50c736e8c7
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git cherry-pick --no-commit 5aecd2dd355a50c31f2b0c852bd56f50c736e8c7
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/setup-python@v5
+        id: host_python
         with:
           python-version: '3.12'
           architecture: x64
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x86
       - name: Build plugin and package without publishing
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $env:PYTHON = $env:pythonLocation
+          $env:PYTHON = Split-Path '${{ steps.host_python.outputs.python-path }}'
+          python -c "import struct; assert struct.calcsize('P') == 4; print('Starting with 32-bit Python on PATH')"
           $env:CONFIGURATION = 'RelWithDebInfo'
           $script = Get-Content ci/appveyor.bat -Raw
           if (-not $script.Contains('echo Uploading artifact')) { throw 'Missing publication boundary' }
           # Exercise the actual build script through dependency inspection;
           # omit its upload/catalog publication tail in this validation job.
-          $script.Split(@('echo Uploading artifact'), [StringSplitOptions]::None)[0] + "`r`nexit /b 0`r`n" | Set-Content ci/appveyor-build-only.bat -Encoding ascii
+          $verifyPython = 'python -c "import struct, importlib.metadata; from cryptography.fernet import Fernet; assert struct.calcsize(''P'') == 8; Fernet.generate_key(); print(importlib.metadata.version(''cloudsmith-cli'')); print(''64-bit packaging dependencies verified'')"'
+          $script.Split(@('echo Uploading artifact'), [StringSplitOptions]::None)[0] + "`r`n$verifyPython`r`nif errorlevel 1 exit /b 1`r`nexit /b 0`r`n" | Set-Content ci/appveyor-build-only.bat -Encoding ascii
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
           "@echo off`r`ncall `"$vs\VC\Auxiliary\Build\vcvars32.bat`"`r`ncall ci\appveyor-build-only.bat`r`nexit /b %errorlevel%" | Set-Content run-validation.cmd -Encoding ascii
           & cmd /c run-validation.cmd
@@ -53,9 +72,10 @@ jobs:
           Pop-Location
           if ($code -eq 0 -or (Test-Path "$root/build")) { throw 'Dependency failure was not stopped' }
           Write-Output "Dependency failure correctly stopped before configure: exit $code"
+          exit 0
       - uses: actions/upload-artifact@v4
         with:
-          name: pypilot-windows-build
+          name: pypilot-windows-build-${{ matrix.variant }}
           path: |
             build/*.tar.gz
             build/*.xml
