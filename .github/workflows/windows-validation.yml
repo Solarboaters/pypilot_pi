@@ -29,6 +29,11 @@ jobs:
         with:
           python-version: '3.12'
           architecture: x64
+      - name: Match AppVeyor CMake version
+        shell: pwsh
+        run: |
+          python -m pip install cmake==4.1.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
