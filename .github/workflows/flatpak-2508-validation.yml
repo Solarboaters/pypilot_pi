@@ -57,6 +57,30 @@ jobs:
           cp build/flatpak/*.yaml evidence/
           cmake --build build --target flatpak-build 2>&1 | tee evidence/build.log
           cmake --build build --target flatpak-pkg 2>&1 | tee evidence/package.log
+          # The normal Cloudsmith publishing script adds metadata.xml here.
+          # Finalize locally without uploading to the official repository.
+          /usr/bin/python3 - <<'PYFINAL'
+          import io, pathlib, tarfile, xml.etree.ElementTree as ET
+          xml, = pathlib.Path('build').glob('*.xml')
+          metadata = xml.read_bytes()
+          root = ET.fromstring(metadata)
+          assert root.findtext('target').strip() == 'flatpak-aarch64'
+          assert root.findtext('target-version').strip() == '25.08'
+          package, = pathlib.Path('build').glob('*.tar.gz')
+          temporary = package.with_suffix('.final.gz')
+          with tarfile.open(package) as src, tarfile.open(temporary, 'w:gz') as dst:
+              for member in src:
+                  if not member.name.startswith('pypilot-flatpak-'):
+                      assert member.isdir(), member.name
+                      continue
+                  dst.addfile(member, src.extractfile(member) if member.isfile() else None)
+              entry = tarfile.TarInfo('metadata.xml')
+              entry.size = len(metadata)
+              entry.mode = 0o644
+              dst.addfile(entry, io.BytesIO(metadata))
+          temporary.replace(package)
+          pathlib.Path('evidence/metadata.xml').write_bytes(metadata)
+          PYFINAL
           cp build/*.tar.gz evidence/
           sha256sum evidence/*.tar.gz > evidence/SHA256SUMS
           find build/app/files -name '*.so' -exec file {} \; | tee evidence/binaries.txt
