@@ -20,7 +20,10 @@ values = [BooleanValue('ap.enabled', False), StringValue('ap.mode', 'compass'),
           Value('ap.modes', ['compass', 'gps', 'wind']),
           SensorValue('ap.heading', 123.4), SensorValue('ap.heading_command', 125.0),
           SensorValue('imu.heading', 123.4), SensorValue('imu.uptime', 0),
-          StringValue('ap.tack.state', 'none'), StringValue('servo.flags', '')]
+          StringValue('ap.tack.state', 'none'), StringValue('servo.flags', ''),
+          StringValue('ap.tack.direction', 'port'), StringValue('imu.error', ''),
+          StringValue('imu.warning', ''), StringValue('servo.state', 'idle'),
+          StringValue('servo.controller', 'none'), SensorValue('rudder.angle', 0)]
 for value in values:
     owner.register(value)
 server.init()  # Run in this process while keeping the production socket-pair transport.
