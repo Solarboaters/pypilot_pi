@@ -1,0 +1,60 @@
+name: ARM64 Flatpak 25.08 validation
+on:
+  push:
+    branches: [validation/flatpak-arm64-2508]
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Install build and test tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y flatpak flatpak-builder cmake gettext libcurl4-openssl-dev xvfb xdotool openbox python3-pil
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive flathub org.freedesktop.Sdk//25.08 org.opencpn.OpenCPN
+      - name: Record environment and build matching package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          uname -a | tee evidence/architecture.txt
+          flatpak list --columns=application,arch,branch,commit | tee evidence/flatpak-versions.txt
+          flatpak info --show-metadata org.opencpn.OpenCPN > evidence/opencpn-metadata.txt
+          git rev-parse HEAD > evidence/source-commit.txt
+          git submodule status > evidence/submodules.txt
+          cmake -S . -B build -DOCPN_TARGET=flatpak -DBUILD_ARCH=aarch64 -DOCPN_FLATPAK_CONFIG=ON -DSDK_VER=25.08 -DFLATPAK_BRANCH=stable 2>&1 | tee evidence/configure.log
+          # Pin the generated manifest to the exact checked-out commit.
+          python3 - <<'PY'
+          import os, pathlib, yaml
+          p = pathlib.Path('build/flatpak/org.opencpn.OpenCPN.Plugin.pypilot.yaml')
+          d = yaml.safe_load(p.read_text())
+          s = d['modules'][0]['sources'][0]
+          s.pop('branch', None)
+          s.pop('tag', None)
+          s['url'] = 'https://github.com/' + os.environ['GITHUB_REPOSITORY'] + '.git'
+          s['commit'] = os.environ['GITHUB_SHA']
+          p.write_text(yaml.safe_dump(d, sort_keys=False))
+          PY
+          cp build/flatpak/*.yaml evidence/
+          cmake --build build --target flatpak-build 2>&1 | tee evidence/build.log
+          cmake --build build --target flatpak-pkg 2>&1 | tee evidence/package.log
+          cp build/*.tar.gz evidence/
+          sha256sum evidence/*.tar.gz > evidence/SHA256SUMS
+          find build/app/files -name '*.so' -exec file {} \; | tee evidence/binaries.txt
+      - name: Test package compatibility and import
+        run: dbus-run-session -- xvfb-run -a bash ci/validate-flatpak-package.sh
+      - name: Preserve package and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pypilot-arm64-flatpak-2508
+          path: evidence/
+          retention-days: 14
