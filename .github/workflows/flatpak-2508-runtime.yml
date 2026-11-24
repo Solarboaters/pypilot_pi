@@ -31,7 +31,7 @@ jobs:
           sudo apt-get install -y flatpak xvfb xdotool openbox python3-pil python3-dev swig g++
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user --noninteractive flathub org.opencpn.OpenCPN
+          flatpak install --user --noninteractive flathub org.opencpn.OpenCPN org.freedesktop.Sdk//25.08
           cd pypilot-server/pypilot/linebuffer
           swig -c++ -python linebuffer.i
           g++ -shared -fPIC $(/usr/bin/python3-config --includes) linebuffer.cpp linebuffer_wrap.cxx -o _linebuffer.so

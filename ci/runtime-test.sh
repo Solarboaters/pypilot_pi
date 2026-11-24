@@ -10,11 +10,17 @@ flatpak run --filesystem="$PWD:ro" --command=opencpn-cmd org.opencpn.OpenCPN -v 
 baseline_rc=$?
 set -e
 echo "$baseline_rc" > evidence/baseline-exit.txt
-test "$baseline_rc" -eq 2
+if test "$baseline_rc" -ne 2; then
+  flatpak run --devel --filesystem="$PWD:ro" --command=gdb org.opencpn.OpenCPN --batch -ex 'catch throw' -ex run -ex 'bt 25' --args /app/bin/opencpn-cmd -v import-plugin "$PWD/evidence/original-24.08.tar.gz" > evidence/baseline-backtrace.log 2>&1 || true
+  exit 1
+fi
 grep -F 'Incompatible plugin detected' evidence/baseline-import.log
 package=$(realpath package/*aarch64_flatpak-25.08.tar.gz)
 sha256sum "$package" > evidence/tested-package-SHA256SUMS
-flatpak run --filesystem="$PWD:ro" --command=opencpn-cmd org.opencpn.OpenCPN -v import-plugin "$package" > evidence/fixed-import.log 2>&1
+if ! flatpak run --filesystem="$PWD:ro" --command=opencpn-cmd org.opencpn.OpenCPN -v import-plugin "$package" > evidence/fixed-import.log 2>&1; then
+  flatpak run --devel --filesystem="$PWD:ro" --command=gdb org.opencpn.OpenCPN --batch -ex 'catch throw' -ex run -ex 'bt 25' --args /app/bin/opencpn-cmd -v import-plugin "$package" > evidence/fixed-backtrace.log 2>&1 || true
+  exit 1
+fi
 flatpak run --command=opencpn-cmd org.opencpn.OpenCPN list-plugins > evidence/installed-plugins.txt
 grep -i pypilot evidence/installed-plugins.txt
 /usr/bin/python3 ci/runtime-probe.py
