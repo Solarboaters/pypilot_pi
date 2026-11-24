@@ -16,7 +16,7 @@ jobs:
       - name: Install build and test tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y flatpak flatpak-builder cmake gettext libcurl4-openssl-dev xvfb xdotool openbox python3-pil
+          sudo apt-get install -y flatpak flatpak-builder cmake gettext libcurl4-openssl-dev xvfb xdotool openbox python3-pil python3-yaml
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user --noninteractive flathub org.freedesktop.Sdk//25.08 org.opencpn.OpenCPN
@@ -26,13 +26,13 @@ jobs:
           set -euo pipefail
           mkdir -p evidence
           uname -a | tee evidence/architecture.txt
-          flatpak list --columns=application,arch,branch,commit | tee evidence/flatpak-versions.txt
+          flatpak list --columns=application,arch,branch,active | tee evidence/flatpak-versions.txt
           flatpak info --show-metadata org.opencpn.OpenCPN > evidence/opencpn-metadata.txt
           git rev-parse HEAD > evidence/source-commit.txt
           git submodule status > evidence/submodules.txt
           cmake -S . -B build -DOCPN_TARGET=flatpak -DBUILD_ARCH=aarch64 -DOCPN_FLATPAK_CONFIG=ON -DSDK_VER=25.08 -DFLATPAK_BRANCH=stable 2>&1 | tee evidence/configure.log
           # Pin the generated manifest to the exact checked-out commit.
-          python3 - <<'PY'
+          /usr/bin/python3 - <<'PY'
           import os, pathlib, yaml
           p = pathlib.Path('build/flatpak/org.opencpn.OpenCPN.Plugin.pypilot.yaml')
           d = yaml.safe_load(p.read_text())
