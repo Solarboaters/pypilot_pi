@@ -48,7 +48,10 @@ try:
                 for window in welcome.stdout.split():
                     subprocess.run(['xdotool', 'windowactivate', '--sync', window, 'mousemove', '285', '438', 'click', '1'], check=True)
                 print('Clicked Agree in isolated test profile.')
-        if elapsed in (5, 20, 44):
+        if elapsed == 20:
+            # pypilot sailboat toolbar icon, observed in runtime4 screenshot.
+            subprocess.run(['xdotool', 'mousemove', '28', '365', 'click', '1'], check=True)
+        if elapsed in (5, 25, 44):
             ImageGrab.grab().save(evidence / ('screen-' + str(elapsed) + '.png'))
     titles = subprocess.run(['xdotool', 'search', '--onlyvisible', '--name', '.*',
                              'getwindowname', '%@'], capture_output=True, text=True)
@@ -59,7 +62,16 @@ try:
     result = {'gui_alive': processes[-1].poll() is None,
               'connected': any(s['connections'] > 0 for s in states),
               'subscribed': any('ap.mode' in s['watched'] and 'ap.enabled' in s['watched'] for s in states),
+              'panel_open': 'Connected to 127.0.0.1' in titles.stdout,
+              'panel_subscribed': any('ap.heading' in s['watched'] and 'ap.heading_command' in s['watched'] for s in states),
               'steering_disabled': bool(states) and all(s['enabled'] is False for s in states)}
+    main = subprocess.run(['xdotool', 'search', '--onlyvisible', '--name', '^OpenCPN 5'], capture_output=True, text=True)
+    assert main.returncode == 0
+    subprocess.run(['xdotool', 'windowactivate', '--sync', main.stdout.split()[0], 'key', 'alt+F4'], check=True)
+    try:
+        result['clean_gui_exit'] = processes[-1].wait(timeout=15) == 0
+    except subprocess.TimeoutExpired:
+        result['clean_gui_exit'] = False
     (evidence / 'runtime-result.json').write_text(json.dumps(result, indent=2))
     print(json.dumps(result))
     assert all(result.values()), result
