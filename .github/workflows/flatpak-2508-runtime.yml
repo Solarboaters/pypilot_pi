@@ -22,7 +22,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
-          run-id: 45495865940
+          run-id: 45497184747
           name: pypilot-arm64-flatpak-2508
           path: package
       - name: Install runtime test dependencies
