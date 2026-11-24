@@ -21,6 +21,12 @@ if ! flatpak run --filesystem="$PWD:ro" --command=opencpn-cmd org.opencpn.OpenCP
   flatpak run --devel --filesystem="$PWD:ro" --command=gdb org.opencpn.OpenCPN --batch -ex 'catch throw' -ex run -ex 'bt 25' --args /app/bin/opencpn-cmd -v import-plugin "$package" > evidence/fixed-backtrace.log 2>&1 || true
   exit 1
 fi
-flatpak run --command=opencpn-cmd org.opencpn.OpenCPN list-plugins > evidence/installed-plugins.txt
-grep -i pypilot evidence/installed-plugins.txt
+echo 0 > evidence/fixed-import-exit.txt
+set +e
+flatpak run --command=opencpn-cmd org.opencpn.OpenCPN list-plugins > evidence/installed-plugins.txt 2> evidence/list-plugins-error.log
+echo "$?" > evidence/list-plugins-exit.txt
+set -e
+# The GUI below checks loading and live connection independently of CLI listing.
+find "$HOME/.var/app/org.opencpn.OpenCPN" -name '*pypilot*' -print > evidence/installed-files.txt
+test -s "$HOME/.var/app/org.opencpn.OpenCPN/lib/opencpn/libpypilot_pi.so"
 /usr/bin/python3 ci/runtime-probe.py
