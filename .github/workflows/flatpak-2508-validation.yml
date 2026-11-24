@@ -8,6 +8,13 @@ jobs:
   package:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
+    env:
+      OCPN_TARGET: flatpak
+      BUILD_ARCH: aarch64
+      CIRCLECI: 'true'
+      CIRCLE_PROJECT_USERNAME: Solarboaters
+      CIRCLE_PROJECT_REPONAME: pypilot_pi
+      CIRCLE_BRANCH: validation/flatpak-arm64-2508
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,6 +48,10 @@ jobs:
           s.pop('tag', None)
           s['url'] = 'https://github.com/' + os.environ['GITHUB_REPOSITORY'] + '.git'
           s['commit'] = os.environ['GITHUB_SHA']
+          d['modules'][0]['build-options']['env'] = {
+              k: os.environ[k] for k in ['OCPN_TARGET', 'BUILD_ARCH', 'CIRCLECI',
+                  'CIRCLE_PROJECT_USERNAME', 'CIRCLE_PROJECT_REPONAME', 'CIRCLE_BRANCH']}
+
           p.write_text(yaml.safe_dump(d, sort_keys=False))
           PY
           cp build/flatpak/*.yaml evidence/
