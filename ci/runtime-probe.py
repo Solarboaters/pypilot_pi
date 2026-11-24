@@ -46,8 +46,8 @@ try:
             welcome = subprocess.run(['xdotool', 'search', '--onlyvisible', '--name', '^Welcome to OpenCPN$'], capture_output=True, text=True)
             if welcome.returncode == 0:
                 for window in welcome.stdout.split():
-                    subprocess.run(['xdotool', 'windowactivate', '--sync', window, 'mousemove', '--window', window, '285', '438', 'click', '1'], check=True)
-                print('Dismissed first-run navigation disclaimer in isolated test profile.')
+                    subprocess.run(['xdotool', 'windowactivate', '--sync', window, 'mousemove', '285', '438', 'click', '1'], check=True)
+                print('Clicked Agree in isolated test profile.')
         if elapsed in (5, 20, 44):
             ImageGrab.grab().save(evidence / ('screen-' + str(elapsed) + '.png'))
     titles = subprocess.run(['xdotool', 'search', '--onlyvisible', '--name', '.*',

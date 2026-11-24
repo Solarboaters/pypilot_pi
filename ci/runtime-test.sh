@@ -15,6 +15,7 @@ if test "$baseline_rc" -ne 2; then
   exit 1
 fi
 grep -F 'Incompatible plugin detected' evidence/baseline-import.log
+python3 ci/finalize-test-package.py
 package=$(realpath package/*aarch64_flatpak-25.08.tar.gz)
 sha256sum "$package" > evidence/tested-package-SHA256SUMS
 if ! flatpak run --filesystem="$PWD:ro" --command=opencpn-cmd org.opencpn.OpenCPN -v import-plugin "$package" > evidence/fixed-import.log 2>&1; then
