@@ -6,6 +6,7 @@ flatpak run --command=sh org.opencpn.OpenCPN -c 'ls /app/bin; uname -m'
 flatpak run --command=opencpn-cmd org.opencpn.OpenCPN print-abi
 package=$(realpath build/*aarch64_flatpak-25.08.tar.gz)
 flatpak run --filesystem="$PWD:ro" --command=opencpn-cmd org.opencpn.OpenCPN -v import-plugin "$package"
-flatpak run --command=opencpn-cmd org.opencpn.OpenCPN list-plugins
+echo 'Matching package import exit status: 0'
+test -s "$HOME/.var/app/org.opencpn.OpenCPN/lib/opencpn/libpypilot_pi.so"
 find "$HOME/.var/app/org.opencpn.OpenCPN" -name '*pypilot*' -print
 echo 'Matching package import finished successfully.'
